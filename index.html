@@ -143,6 +143,9 @@ body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
     <div class="fld"><label for="f-vil">Village</label><select id="f-vil"></select></div>
     <div class="fld"><label for="f-bt">Business type</label><select id="f-bt"></select></div>
     <div class="fld" id="fld-rec"><label for="f-rec">Registered records</label><select id="f-rec"><option value="cmf">Counted as registered</option><option value="all">All in the 3 blocks</option></select></div>
+    <div class="fld"><label for="f-from">From date</label><input id="f-from" type="date"></div>
+    <div class="fld"><label for="f-to">To date</label><input id="f-to" type="date"></div>
+    <div class="fld"><label>Quick dates</label><div class="chips"><button type="button" id="q-latest">Latest day</button><button type="button" id="q-week">Last 7 days</button><button type="button" id="q-all">All dates</button></div></div>
     <div class="fld"><label for="f-q">RWE, spouse, SHG, ID, mobile</label><input id="f-q" type="search" placeholder="Search"></div>
     <button id="f-reset" type="button">Reset</button>
     <span class="cnt" id="cnt"></span>
@@ -175,7 +178,9 @@ const monLabel=m=>MON(new Date(m+'-01T00:00:00Z'));
 // ---------- state
 let RAWREF=null, ALL=[], TGT=[], CAT={};
 const META=window.__META||{};
-const F={district:'',block:'',mat:'',vil:'',bt:'',rec:'cmf',q:''};
+const F={district:'',block:'',mat:'',vil:'',bt:'',rec:'cmf',q:'',from:'',to:''};
+const rkey=r=>r.cohort==='revisit'?r.engd:r.regd;
+const inRange=d=>(!F.from||(d&&d>=F.from))&&(!F.to||(d&&d<=F.to));
 const S={tab:'progress',hideBad:true,sev:{Critical:true,Warning:true,Info:false},cat:'',code:'',shown:30,vshown:15,rshown:40};
 const MAT_ORDER=META.mats||[];
 const BT_ORDER=['Kirana/General Store','Tailoring','Beauty Parlor','CSC/Training/Emitra','Other Stores'];
@@ -210,10 +215,10 @@ function fillSelects(){
   fillSelect('#f-bt',BT_ORDER.filter(b=>ALL.some(r=>r.grp===b)),'All business types');
 }
 const lc=s=>String(s||'').toLowerCase();
-function regOk(r,q){return (!F.district||r.district===F.district)&&(!F.block||r.block===F.block)&&(!F.mat||r.mat===F.mat)&&(!F.vil||r.vk===F.vil)&&(!F.bt||r.grp===F.bt)&&(!q||lc(r.name).includes(q)||String(r.id).includes(q)||String(r.mobile).includes(q));}
+function regOk(r,q){return inRange(rkey(r))&&(!F.district||r.district===F.district)&&(!F.block||r.block===F.block)&&(!F.mat||r.mat===F.mat)&&(!F.vil||r.vk===F.vil)&&(!F.bt||r.grp===F.bt)&&(!q||lc(r.name).includes(q)||String(r.id).includes(q)||String(r.mobile).includes(q));}
 function filtered(){const q=F.q.trim().toLowerCase();return ALL.filter(r=>(F.rec==='all'||r.cohort!=='other')&&regOk(r,q));}
 function cohortRows(){const q=F.q.trim().toLowerCase();return ALL.filter(r=>r.cohort!=='other'&&regOk(r,q));}
-function tgtFiltered(){const q=F.q.trim().toLowerCase();return TGT.filter(t=>(!F.district||t.district===F.district)&&(!F.block||t.block===F.block)&&(!F.mat||t.mat===F.mat)&&(!F.vil||t.village===F.vil)&&(!F.bt||F.bt===t.grp)&&(!q||lc(t.name).includes(q)||lc(t.spouse).includes(q)||lc(t.shg).includes(q)||lc(t.village).includes(q)));}
+function tgtFiltered(){const q=F.q.trim().toLowerCase();return TGT.map(t=>(F.from||F.to)&&t.status!==NOTREG&&!inRange(t.mdate)?Object.assign({},t,{status:NOTREG}):t).filter(t=>(!F.district||t.district===F.district)&&(!F.block||t.block===F.block)&&(!F.mat||t.mat===F.mat)&&(!F.vil||t.village===F.vil)&&(!F.bt||F.bt===t.grp)&&(!q||lc(t.name).includes(q)||lc(t.spouse).includes(q)||lc(t.shg).includes(q)||lc(t.village).includes(q)));}
 // ---------- building blocks
 function tile(k,v,n){return h('div',{class:'tile'},h('span',{class:'k'},k),h('span',{class:'v'},v),h('span',{class:'n'},n||' '));}
 function card(title,sub,body,cls){return h('section',{class:'card'+(cls?' '+cls:'')},h('h3',null,title),sub?h('p',{class:'sub'},sub):null,body);}
@@ -462,14 +467,14 @@ function paneProgress(){
     h('thead',null,h('tr',null,[th('Block',1),th('MAT',1),th('Target'),th('Registered, total'),th('On the list'),th('Additional'),th('Still to register'),th('On-list progress')])),
     h('tbody',null,brows.map(x=>h('tr',null,h('td',null,x.b),h('td',{class:'l'},x.mat),h('td',null,N0(x.n)),h('td',null,N0(x.rg)),h('td',null,N0(x.m)),h('td',null,N0(x.nn)),h('td',null,N0(x.left)),h('td',null,pbar(x.p),P0(x.p)))),
       brows.length>1?h('tr',{class:'tot'},h('td',null,'All'),h('td',null,''),h('td',null,N0(tot.n)),h('td',null,N0(tot.rg)),h('td',null,N0(tot.m)),h('td',null,N0(tot.nn)),h('td',null,N0(tot.left)),h('td',null,tot.n?P0(tot.m/tot.n):'–')):null))),'wide'));
-  const days=[];{let d=new Date(META.start+'T00:00:00Z');const e=new Date(META.asof+'T00:00:00Z');while(d<=e){days.push(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}}
+  const days=[];{let d=new Date(META.start+'T00:00:00Z');const e=new Date(META.asof+'T00:00:00Z');while(d<=e){const ds=d.toISOString().slice(0,10);if(inRange(ds))days.push(ds);d=new Date(d.getTime()+864e5);}}
   const mats=MAT_ORDER.filter(m=>!F.mat||m===F.mat);
   el.append(card('Registrations by day','New registrations since '+META.startLabel+', by MAT. "+ earlier" counts RWEs registered before by FM who were worked with by the MAT that day.',h('div',{class:'scroll'},h('table',{class:'t'},
     h('thead',null,h('tr',null,[th('Date',1),...mats.map(m=>th(m.split(' (')[0])),th('Total')])),
     h('tbody',null,days.map(dy=>{const c=mats.map(m=>newReg.filter(r=>r.cohort==='drive'&&r.regd===dy&&r.mat===m).length),e=mats.map(m=>newReg.filter(r=>r.cohort==='revisit'&&r.engd===dy&&r.mat===m).length),ex=(n,k)=>N0(n)+(k?' (+'+k+' earlier)':'');return h('tr',null,h('td',null,fdate(dy)),c.map((x,i)=>h('td',null,ex(x,e[i]))),h('td',null,ex(c.reduce((a,b)=>a+b,0),e.reduce((a,b)=>a+b,0))));}))))));
   el.append(card('Shop type on the target list',N0(tf.length)+' target RWEs.',barList(listFrom(tally(tf,t=>t.biz)),tf.length)));
   // MAT activity
-  const ma=(META.mat_act||[]).filter(m=>!F.mat||m.mat===F.mat);
+  const ma=(META.mat_act||[]).filter(m=>(!F.mat||m.mat===F.mat)&&inRange(m.date));
   el.append(card('MAT activity','From the MAT working report and the CMF visit form, '+fdate(META.asof)+'. Visits logged are RWE visits recorded in the working report.',ma.length?h('div',{style:'display:flex;flex-direction:column;gap:10px'},
     h('div',{class:'scroll'},h('table',{class:'t'},h('thead',null,h('tr',null,[th('MAT',1),th('Signed in'),th('Signed out'),th('Time worked'),th('Visits logged'),th('Visit forms submitted'),th('Visit forms in draft')])),
       h('tbody',null,ma.map(m=>h('tr',null,h('td',{class:'l'},m.fullname+' ('+m.code+')'),h('td',null,m.signin||'–'),h('td',null,m.signout||'Not signed out'),h('td',null,m.hrs||'–'),h('td',null,N0(m.visits)),h('td',null,N0(m.forms.filter(f=>f.status!=='DRAFT').length)),h('td',null,N0(m.forms.filter(f=>f.status==='DRAFT').length))))))),
@@ -582,7 +587,7 @@ function matModel(){
   let days=all;
   if(SM.quick==='latest')days=[META.asof];
   else if(SM.quick==='week')days=all.slice(-7);
-  else{if(SM.from)days=days.filter(d=>d>=SM.from);if(SM.to)days=days.filter(d=>d<=SM.to);}
+  else{if(F.from)days=days.filter(d=>d>=F.from);if(F.to)days=days.filter(d=>d<=F.to);}
   const stat=m=>{const s={m,p:0,half:0,abs:0,holw:0,nos:0,starts:[],hrs:[],gps:0,vil:new Set(),worked:0};
     days.forEach(d=>{const c=cell(m,d);if(c.s==='pre'||c.s==='hol')return;
       if(c.s==='abs'){s.abs++;return;}
@@ -649,8 +654,8 @@ function matMap(recs){
 function paneMat(){
   const M=matModel(),el=h('div',{style:'display:flex;flex-direction:column;gap:14px'});
   // filters
-  const di=(k,l)=>h('div',{class:'fld'},h('label',null,l),h('input',{type:'date',value:SM[k],min:M.all[0],max:META.asof,onchange:e=>{SM[k]=e.target.value;SM.quick='';renderPane();}}));
-  const qb=(k,l)=>h('button',{type:'button','aria-pressed':SM.quick===k?'true':'false',style:SM.quick===k?'background:var(--amber);border-color:var(--amber);font-weight:700':'',onclick:()=>{SM.quick=k;SM.from='';SM.to='';renderPane();}},l);
+  const di=(k,l)=>h('div',{class:'fld'},h('label',null,l),h('input',{type:'date',value:F[k],min:M.all[0],max:META.asof,onchange:e=>{F[k]=e.target.value;$('#f-'+k).value=F[k];SM.quick='';renderPane();}}));
+  const qb=(k,l)=>h('button',{type:'button','aria-pressed':SM.quick===k?'true':'false',style:SM.quick===k?'background:var(--amber);border-color:var(--amber);font-weight:700':'',onclick:()=>{SM.quick=k;F.from='';F.to='';$('#f-from').value='';$('#f-to').value='';renderPane();}},l);
   const mb=(m,l)=>h('button',{type:'button','aria-pressed':SM.mat===m?'true':'false',style:'border-radius:99px;'+(SM.mat===m?'background:var(--amber);border-color:var(--amber);font-weight:700':''),onclick:()=>{SM.mat=m;renderPane();}},l);
   el.append(h('div',{class:'bar'},di('from','From date'),di('to','To date'),
     h('div',{class:'fld'},h('label',null,'Quick dates'),h('div',{class:'chips'},qb('latest','Latest day'),qb('week','Last 7 days'),qb('all','All dates'))),
@@ -747,8 +752,12 @@ function draw(){
   renderPane();
 }
 [['#f-district','district'],['#f-block','block'],['#f-mat','mat'],['#f-vil','vil'],['#f-bt','bt'],['#f-rec','rec']].forEach(([id,k])=>$(id).addEventListener('change',e=>{F[k]=e.target.value;S.shown=30;S.vshown=15;S.rshown=40;draw();}));
+const setDates=(f,t)=>{F.from=f;F.to=t;$('#f-from').value=f;$('#f-to').value=t;SM.quick='';S.shown=30;S.vshown=15;S.rshown=40;draw();};
+$('#f-from').addEventListener('change',e=>setDates(e.target.value,F.to));$('#f-to').addEventListener('change',e=>setDates(F.from,e.target.value));
+const dminus=(d,n)=>new Date(new Date(d+'T00:00:00Z').getTime()-n*864e5).toISOString().slice(0,10);
+$('#q-latest').addEventListener('click',()=>setDates(META.asof,META.asof));$('#q-week').addEventListener('click',()=>setDates(dminus(META.asof,6),META.asof));$('#q-all').addEventListener('click',()=>setDates('',''));
 $('#f-q').addEventListener('input',e=>{F.q=e.target.value;S.shown=30;S.rshown=40;draw();});
-$('#f-reset').addEventListener('click',()=>{Object.keys(F).forEach(k=>F[k]='');F.rec='cmf';['#f-district','#f-block','#f-mat','#f-vil','#f-bt'].forEach(i=>$(i).value='');$('#f-rec').value='cmf';$('#f-q').value='';S.code='';S.cat='';S.shown=30;S.vshown=15;S.rshown=40;draw();});
+$('#f-reset').addEventListener('click',()=>{Object.keys(F).forEach(k=>F[k]='');F.rec='cmf';['#f-district','#f-block','#f-mat','#f-vil','#f-bt'].forEach(i=>$(i).value='');$('#f-rec').value='cmf';$('#f-q').value='';$('#f-from').value='';$('#f-to').value='';S.code='';S.cat='';S.shown=30;S.vshown=15;S.rshown=40;draw();});
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-tab]');if(!b)return;S.tab=b.dataset.tab;dash.setLink(b.id);renderPane();});
 const named=location.hash.slice(1);if(PANES[named])S.tab=named;
 if(window.innerWidth<=820)$('#fbox').open=false;
